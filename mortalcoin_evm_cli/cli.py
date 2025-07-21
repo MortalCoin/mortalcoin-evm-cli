@@ -18,6 +18,7 @@ from mortalcoin_evm_cli.blockchain import (
     create_game,
     get_game_info,
     validate_create_game_transaction,
+    validate_join_game_transaction,
     join_game,
 )
 
@@ -224,6 +225,107 @@ def validate_create_game_command(
         click.echo(f"- Called createGame function: {validation_result['called_create_game']}")
         click.echo(f"- Pool address matches: {validation_result['pool_address_match']}")
         click.echo(f"- Game ID valid: {validation_result['game_id_valid']}")
+        
+        # Print the game information
+        click.echo("\nGame information:")
+        click.echo(json.dumps(validation_result['game_info'], indent=2))
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Address of the MortalCoin smart contract in 0x-prefixed hex format.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--game-id",
+    required=True,
+    help="Game ID in 0x-prefixed hex format or decimal.",
+)
+@click.option(
+    "--player2-pool",
+    required=True,
+    help="Address of player2's pool in 0x-prefixed hex format.",
+)
+@click.option(
+    "--tx-hash",
+    required=True,
+    help="Transaction hash in 0x-prefixed hex format.",
+)
+def validate_join_game_command(
+    rpc_url: str,
+    contract_address: str,
+    game_id: str,
+    player2_pool: str,
+    tx_hash: str,
+):
+    """
+    Validate a transaction that joined a game.
+    
+    This command validates that:
+    - The transaction is confirmed
+    - The transaction execution was successful
+    - The transaction actually called joinGame with the expected game ID and pool address
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        if not Web3.is_address(player2_pool):
+            click.echo(f"Error: Invalid pool address: {player2_pool}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        player2_pool = Web3.to_checksum_address(player2_pool)
+        
+        # Convert game_id from hex to int if it's in hex format
+        if game_id.startswith("0x"):
+            game_id_int = int(game_id, 16)
+        else:
+            try:
+                game_id_int = int(game_id)
+            except ValueError:
+                click.echo(f"Error: Invalid game ID format: {game_id}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Validate the transaction
+        click.echo(f"Validating transaction {tx_hash} for game ID {game_id}...")
+        validation_result = validate_join_game_transaction(
+            web3=web3,
+            contract=contract,
+            game_id=game_id_int,
+            tx_hash=tx_hash,
+            pool_address=player2_pool,
+        )
+        
+        # Print the validation results
+        click.echo("Validation successful!")
+        click.echo("Results:")
+        click.echo(f"- Transaction confirmed: {validation_result['confirmed']}")
+        click.echo(f"- Transaction successful: {validation_result['successful']}")
+        click.echo(f"- Called joinGame function: {validation_result['called_join_game']}")
+        click.echo(f"- Game ID matches: {validation_result['game_id_match']}")
+        click.echo(f"- Pool address matches: {validation_result['pool_address_match']}")
         
         # Print the game information
         click.echo("\nGame information:")

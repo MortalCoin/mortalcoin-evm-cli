@@ -517,3 +517,98 @@ def validate_create_game_transaction(
         "game_id_valid": True,
         "game_info": game_info
     }
+
+
+def validate_join_game_transaction(
+    web3: Web3,
+    contract: Contract,
+    game_id: int,
+    tx_hash: str,
+    pool_address: str
+) -> Dict[str, Any]:
+    """
+    Validate a transaction that joined a game.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        game_id: The expected game ID.
+        tx_hash: The transaction hash.
+        pool_address: The expected player2 pool address.
+        
+    Returns:
+        A dictionary containing validation results.
+    
+    Raises:
+        TransactionNotFound: If the transaction is not found.
+        ValueError: If the transaction validation fails.
+    """
+    # Convert addresses to checksum format
+    pool_address = Web3.to_checksum_address(pool_address)
+    
+    # Check if the transaction exists and is confirmed
+    try:
+        tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
+        if tx_receipt is None:
+            raise ValueError("Transaction is not confirmed")
+    except TransactionNotFound:
+        raise ValueError("Transaction not found")
+    
+    # Check if the transaction was successful
+    if tx_receipt["status"] != 1:
+        raise ValueError("Transaction execution failed")
+    
+    # Get the transaction details
+    tx = web3.eth.get_transaction(tx_hash)
+    
+    # Check if the transaction was sent to the contract address
+    if tx["to"].lower() != contract.address.lower():
+        raise ValueError(f"Transaction was not sent to the contract address {contract.address}")
+    
+    # Decode the transaction input data
+    try:
+        # Get the function signature for joinGame
+        # Calculate the function signature (first 4 bytes of keccak hash of 'joinGame(uint256,address,uint256,bytes)')
+        # Function signature should be exactly 4 bytes (8 hex characters)
+        join_game_signature = web3.keccak(text='joinGame(uint256,address,uint256,bytes)').hex()[:8]
+        
+        # Check if the transaction called the joinGame function
+        # Convert join_game_signature to bytes for comparison with tx["input"] which is in bytes format
+        join_game_signature_bytes = bytes.fromhex(join_game_signature)
+        
+        if not tx["input"].startswith(join_game_signature_bytes):
+            raise ValueError("Transaction did not call joinGame function")
+        
+        # Decode the function parameters
+        decoded_input = contract.decode_function_input(tx["input"])
+        
+        # Check if the game ID matches
+        if decoded_input[1]["gameId"] != game_id:
+            raise ValueError(f"Transaction called joinGame with game ID {decoded_input[1]['gameId']} instead of {game_id}")
+        
+        # Check if the pool address matches
+        if decoded_input[1]["pool"].lower() != pool_address.lower():
+            raise ValueError(f"Transaction called joinGame with pool address {decoded_input[1]['pool']} instead of {pool_address}")
+    except Exception as e:
+        raise ValueError(f"Failed to decode transaction input: {e}")
+    
+    # Check if the game exists and has the expected player2 pool
+    try:
+        # Get the game info
+        game_info = get_game_info(web3, contract, game_id)
+        
+        # Check if the game was joined with the expected pool address
+        if game_info["player2Pool"].lower() != pool_address.lower():
+            raise ValueError(f"Game {game_id} has player2 pool address {game_info['player2Pool']} instead of {pool_address}")
+    except Exception as e:
+        raise ValueError(f"Failed to verify game ID: {e}")
+    
+    # All validations passed
+    return {
+        "confirmed": True,
+        "successful": True,
+        "called_join_game": True,
+        "game_id_match": True,
+        "pool_address_match": True,
+        "game_info": game_info
+    }

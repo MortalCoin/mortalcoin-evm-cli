@@ -7,6 +7,7 @@ A command-line interface for interacting with MortalCoin EVM smart contracts.
 - Create games on the MortalCoin smart contract
 - Join existing games on the MortalCoin smart contract
 - Validate game creation transactions
+- Validate game joining transactions
 - Track transaction status
 - Retrieve game information
 
@@ -100,6 +101,27 @@ mortalcoin validate-create-game-command \
 - `--contract-address`: Address of the MortalCoin smart contract (required)
 - `--rpc-url`: URL of the Ethereum RPC endpoint (required)
 
+### Validate a Game Join Transaction
+
+Validate that a transaction successfully joined a game with the expected parameters:
+
+```
+mortalcoin validate-join-game-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --game-id GAME_ID \
+  --player2-pool PLAYER2_POOL_ADDRESS \
+  --tx-hash TRANSACTION_HASH
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--player2-pool`: Address of player2's pool in 0x-prefixed hex format (required)
+- `--tx-hash`: Transaction hash in 0x-prefixed hex format (required)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
@@ -155,6 +177,17 @@ mortalcoin validate-create-game-command \
   --pool-address 0x37f8084c6ed4228378A7beC5819872b595B00223 \
   --contract-address 0x9848a4D5B73677Dc79a059B4f5142567Cf6b5C53 \
   --rpc-url https://hyperion-testnet.metisdevops.link
+```
+
+### Validating a Game Join Transaction
+
+```
+mortalcoin validate-join-game-command \
+  --rpc-url https://hyperion-testnet.metisdevops.link \
+  --contract-address 0x9848a4D5B73677Dc79a059B4f5142567Cf6b5C53 \
+  --game-id 0x20 \
+  --player2-pool 0x37f8084c6ed4228378A7beC5819872b595B00223 \
+  --tx-hash 0x585127fda6c3b2258dc3e7b5f60bfec7426157e94cefcae5afba748881d3ac3a
 ```
 
 ## Security Considerations
