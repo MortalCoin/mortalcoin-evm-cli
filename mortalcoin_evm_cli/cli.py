@@ -1,0 +1,137 @@
+"""
+Command-line interface for MortalCoin EVM CLI.
+
+This module provides the command-line interface for interacting with the MortalCoin
+smart contract on the Ethereum blockchain.
+"""
+
+import json
+import os
+import sys
+from pathlib import Path
+from typing import Optional
+
+import click
+from dotenv import load_dotenv
+from web3 import Web3
+
+from mortalcoin_evm_cli.blockchain import (
+    get_web3_connection,
+    get_contract,
+    create_game,
+    get_game_info,
+)
+
+
+# Load environment variables from .env file if it exists
+load_dotenv()
+
+
+@click.group()
+@click.version_option()
+def main():
+    """MortalCoin EVM CLI tool for interacting with the MortalCoin smart contract."""
+    pass
+
+
+@main.command()
+@click.option(
+    "--private-key",
+    required=True,
+    help="Private key of the user's Ethereum account.",
+    envvar="MORTALCOIN_PRIVATE_KEY",
+)
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Address of the MortalCoin smart contract.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--bet-amount",
+    required=True,
+    type=float,
+    help="Bet amount in ETH.",
+    envvar="MORTALCOIN_BET_AMOUNT",
+)
+@click.option(
+    "--pool-address",
+    required=True,
+    help="Address of the pool.",
+    envvar="MORTALCOIN_POOL_ADDRESS",
+)
+def create_game_command(
+    private_key: str,
+    rpc_url: str,
+    contract_address: str,
+    bet_amount: float,
+    pool_address: str,
+):
+    """
+    Create a new game on the blockchain.
+    
+    This command creates a new game on the blockchain with the specified bet amount
+    and pool address. It then waits for the transaction to be mined and retrieves
+    the game information.
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        if not Web3.is_address(pool_address):
+            click.echo(f"Error: Invalid pool address: {pool_address}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        pool_address = Web3.to_checksum_address(pool_address)
+        
+        # Convert bet amount from ETH to Wei
+        bet_amount_wei = Web3.to_wei(bet_amount, "ether")
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Create the game
+        click.echo(f"Creating game with bet amount {bet_amount} ETH and pool address {pool_address}...")
+        tx_hash, game_id = create_game(
+            web3=web3,
+            contract=contract,
+            private_key=private_key,
+            bet_amount=bet_amount_wei,
+            pool_address=pool_address,
+        )
+        
+        click.echo(f"Transaction hash: {tx_hash}")
+        
+        if game_id is not None:
+            click.echo(f"Game created with ID: {game_id}")
+            
+            # Get the game information
+            click.echo("Retrieving game information...")
+            game_info = get_game_info(web3, contract, game_id)
+            
+            # Print the game information
+            click.echo("Game information:")
+            click.echo(json.dumps(game_info, indent=2))
+        else:
+            click.echo("Failed to retrieve game ID.")
+    
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
