@@ -107,6 +107,9 @@ def create_game(
         # Get the latest block to extract the base fee
         latest_block = web3.eth.get_block('latest')
         
+        # Get the chain ID
+        chain_id = web3.eth.chain_id
+        
         # Check if the block has a base fee (EIP-1559 support)
         if hasattr(latest_block, 'baseFeePerGas') and latest_block.baseFeePerGas is not None:
             base_fee = latest_block.baseFeePerGas
@@ -124,6 +127,7 @@ def create_game(
                 'maxPriorityFeePerGas': max_priority_fee,
                 'nonce': nonce,
                 'type': 2,  # Explicitly set transaction type to EIP-1559
+                'chainId': chain_id,  # Add chain ID to prevent replay attacks
             })
             print("Using EIP-1559 transaction format")
         else:
@@ -133,6 +137,10 @@ def create_game(
         print(f"Warning: Could not use EIP-1559 transaction format: {e}")
         print("Falling back to legacy transaction format")
         
+        # Get the chain ID if not already retrieved
+        if 'chain_id' not in locals():
+            chain_id = web3.eth.chain_id
+            
         # Build the transaction using legacy format
         transaction = contract.functions.createGame(pool_address).build_transaction({
             'from': address,
@@ -140,6 +148,7 @@ def create_game(
             'gas': int(gas_estimate * 1.2),  # Add 20% buffer
             'gasPrice': web3.eth.gas_price,
             'nonce': nonce,
+            'chainId': chain_id,  # Add chain ID to prevent replay attacks
         })
     
     # Sign the transaction
