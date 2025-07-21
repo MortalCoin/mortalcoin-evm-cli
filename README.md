@@ -5,6 +5,7 @@ A command-line interface for interacting with MortalCoin EVM smart contracts.
 ## Features
 
 - Create games on the MortalCoin smart contract
+- Validate game creation transactions
 - Track transaction status
 - Retrieve game information
 
@@ -52,6 +53,27 @@ mortalcoin create-game-command \
 - `--bet-amount`: Bet amount in ETH (required)
 - `--pool-address`: Address of the pool (required)
 
+### Validate a Game Creation Transaction
+
+Validate that a transaction successfully created a game with the expected parameters:
+
+```
+mortalcoin validate-create-game-command \
+  --game-id GAME_ID \
+  --tx-hash TRANSACTION_HASH \
+  --pool-address POOL_ADDRESS \
+  --contract-address CONTRACT_ADDRESS \
+  --rpc-url RPC_URL
+```
+
+#### Parameters
+
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--tx-hash`: Transaction hash in 0x-prefixed hex format (required)
+- `--pool-address`: Pool address in 0x-prefixed hex format (required)
+- `--contract-address`: Address of the MortalCoin smart contract (required)
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
@@ -72,7 +94,9 @@ MORTALCOIN_BET_AMOUNT=bet_amount
 MORTALCOIN_POOL_ADDRESS=pool_address
 ```
 
-## Example
+## Examples
+
+### Creating a Game
 
 ```
 mortalcoin create-game-command \
@@ -81,6 +105,17 @@ mortalcoin create-game-command \
   --contract-address 0x1234567890123456789012345678901234567890 \
   --bet-amount 0.1 \
   --pool-address 0x0987654321098765432109876543210987654321
+```
+
+### Validating a Game Creation Transaction
+
+```
+mortalcoin validate-create-game-command \
+  --game-id 0x20 \
+  --tx-hash 0xadf9934ab7e12f804c57b806819034ead45aefeef0f2ec1f8a36ccdb0a3040e8 \
+  --pool-address 0x37f8084c6ed4228378A7beC5819872b595B00223 \
+  --contract-address 0x9848a4D5B73677Dc79a059B4f5142567Cf6b5C53 \
+  --rpc-url https://hyperion-testnet.metisdevops.link
 ```
 
 ## Security Considerations
