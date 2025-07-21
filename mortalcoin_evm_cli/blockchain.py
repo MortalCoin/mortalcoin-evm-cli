@@ -112,7 +112,7 @@ def create_game(
     signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
     
     # Send the transaction
-    tx_hash = web3.eth.send_raw_transaction(signed_txn.rawTransaction)
+    tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
     
     # Wait for the transaction to be mined
     print(f"Transaction sent: {tx_hash.hex()}")
