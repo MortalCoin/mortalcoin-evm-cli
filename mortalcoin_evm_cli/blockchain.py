@@ -99,14 +99,48 @@ def create_game(
         'nonce': nonce,
     })
     
-    # Build the transaction
-    transaction = contract.functions.createGame(pool_address).build_transaction({
-        'from': address,
-        'value': bet_amount,
-        'gas': int(gas_estimate * 1.2),  # Add 20% buffer
-        'gasPrice': web3.eth.gas_price,
-        'nonce': nonce,
-    })
+    # Try to use EIP-1559 transaction format
+    try:
+        # Get the max priority fee (tip for miners)
+        max_priority_fee = web3.eth.max_priority_fee
+        
+        # Get the latest block to extract the base fee
+        latest_block = web3.eth.get_block('latest')
+        
+        # Check if the block has a base fee (EIP-1559 support)
+        if hasattr(latest_block, 'baseFeePerGas') and latest_block.baseFeePerGas is not None:
+            base_fee = latest_block.baseFeePerGas
+            
+            # Calculate max fee per gas (base fee + priority fee with buffer)
+            # Adding 2x priority fee as buffer to account for base fee increases
+            max_fee_per_gas = base_fee + (max_priority_fee * 2)
+            
+            # Build the transaction using EIP-1559 format
+            transaction = contract.functions.createGame(pool_address).build_transaction({
+                'from': address,
+                'value': bet_amount,
+                'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+                'maxFeePerGas': max_fee_per_gas,
+                'maxPriorityFeePerGas': max_priority_fee,
+                'nonce': nonce,
+                'type': 2,  # Explicitly set transaction type to EIP-1559
+            })
+            print("Using EIP-1559 transaction format")
+        else:
+            # Fallback to legacy transaction if baseFeePerGas is not available
+            raise AttributeError("Latest block does not have baseFeePerGas")
+    except Exception as e:
+        print(f"Warning: Could not use EIP-1559 transaction format: {e}")
+        print("Falling back to legacy transaction format")
+        
+        # Build the transaction using legacy format
+        transaction = contract.functions.createGame(pool_address).build_transaction({
+            'from': address,
+            'value': bet_amount,
+            'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+            'gasPrice': web3.eth.gas_price,
+            'nonce': nonce,
+        })
     
     # Sign the transaction
     signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
