@@ -69,7 +69,7 @@ def create_game(
     web3: Web3,
     contract: Contract,
     private_key: str,
-    bet_amount: int,
+    bet_amount: Wei,
     pool_address: str
 ) -> Tuple[str, int]:
     """
