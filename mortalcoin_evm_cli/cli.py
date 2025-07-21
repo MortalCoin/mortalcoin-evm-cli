@@ -18,6 +18,7 @@ from mortalcoin_evm_cli.blockchain import (
     create_game,
     get_game_info,
     validate_create_game_transaction,
+    join_game,
 )
 
 
@@ -227,6 +228,122 @@ def validate_create_game_command(
         # Print the game information
         click.echo("\nGame information:")
         click.echo(json.dumps(validation_result['game_info'], indent=2))
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Address of the MortalCoin smart contract in 0x-prefixed hex format.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--game-id",
+    required=True,
+    help="Game ID in 0x-prefixed hex format.",
+)
+@click.option(
+    "--player1-privkey",
+    required=True,
+    help="Private key of player1 in 0x-prefixed hex format.",
+)
+@click.option(
+    "--player2-privkey",
+    required=True,
+    help="Private key of player2 in 0x-prefixed hex format.",
+)
+@click.option(
+    "--player2-pool",
+    required=True,
+    help="Address of player2's pool in 0x-prefixed hex format.",
+)
+@click.option(
+    "--bet-amount",
+    required=True,
+    type=float,
+    help="Bet amount in ETH (must match the game's bet amount).",
+)
+def join_game_command(
+    rpc_url: str,
+    contract_address: str,
+    game_id: str,
+    player1_privkey: str,
+    player2_privkey: str,
+    player2_pool: str,
+    bet_amount: float,
+):
+    """
+    Join an existing game on the blockchain.
+    
+    This command allows player2 to join a game created by player1. It requires:
+    - A signature from player1 authorizing player2 to join
+    - The same bet amount as specified when the game was created
+    - A whitelisted pool address for player2
+    
+    The command signs the request using player1's private key, then submits a transaction
+    from player2's account to join the game. It waits for confirmation and prints the
+    updated state of the game.
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        if not Web3.is_address(player2_pool):
+            click.echo(f"Error: Invalid player2 pool address: {player2_pool}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        player2_pool = Web3.to_checksum_address(player2_pool)
+        
+        # Convert game_id from hex to int if it's in hex format
+        if game_id.startswith("0x"):
+            game_id_int = int(game_id, 16)
+        else:
+            try:
+                game_id_int = int(game_id)
+            except ValueError:
+                click.echo(f"Error: Invalid game ID format: {game_id}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Convert bet amount from ETH to Wei
+        bet_amount_wei = Web3.to_wei(bet_amount, "ether")
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Join the game
+        click.echo(f"Joining game {game_id} with bet amount {bet_amount} ETH and player2 pool address {player2_pool}...")
+        tx_hash, game_info = join_game(
+            web3=web3,
+            contract=contract,
+            game_id=game_id_int,
+            player1_private_key=player1_privkey,
+            player2_private_key=player2_privkey,
+            player2_pool=player2_pool,
+            bet_amount=bet_amount_wei,
+        )
+        
+        click.echo(f"Transaction hash: {tx_hash}")
+        
+        # Print the game information
+        click.echo("Game information:")
+        click.echo(json.dumps(game_info, indent=2))
         
     except Exception as e:
         click.echo(f"Error: {str(e)}")

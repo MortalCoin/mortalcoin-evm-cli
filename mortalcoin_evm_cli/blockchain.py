@@ -264,6 +264,170 @@ def get_game_info(web3: Web3, contract: Contract, game_id: int) -> Dict[str, Any
     }
 
 
+def join_game(
+    web3: Web3,
+    contract: Contract,
+    game_id: int,
+    player1_private_key: str,
+    player2_private_key: str,
+    player2_pool: str,
+    bet_amount: Wei
+) -> Tuple[str, Dict[str, Any]]:
+    """
+    Join an existing game on the blockchain.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        game_id: The ID of the game to join.
+        player1_private_key: The private key of player1 who created the game.
+        player2_private_key: The private key of player2 who is joining the game.
+        player2_pool: The address of player2's pool.
+        bet_amount: The bet amount in wei (must match the game's bet amount).
+        
+    Returns:
+        A tuple containing the transaction hash and the updated game info.
+    """
+    # Get accounts from private keys
+    player1_account = web3.eth.account.from_key(player1_private_key)
+    player2_account = web3.eth.account.from_key(player2_private_key)
+    
+    player1_address = player1_account.address
+    player2_address = player2_account.address
+    
+    # Convert pool address to checksum format
+    player2_pool = Web3.to_checksum_address(player2_pool)
+    
+    # Get the nonce for player2's account
+    nonce = web3.eth.get_transaction_count(player2_address)
+    
+    # Set signature expiration (current time + 1 hour)
+    signature_expiration = int(time.time()) + 3600
+    
+    # Create the EIP-712 typed data for the signature
+    # This matches the structure in the contract's joinGame function
+    domain_type_dict = {
+        "name": "MortalCoin",
+        "version": "1",
+        "chainId": web3.eth.chain_id,
+        "verifyingContract": contract.address
+    }
+    
+    # Define the JoinGame type for EIP-712
+    join_game_type = {
+        "JoinGame": [
+            {"name": "gameId", "type": "uint256"},
+            {"name": "player2", "type": "address"},
+            {"name": "signatureExpiration", "type": "uint256"}
+        ]
+    }
+    
+    # Create the message to sign
+    message = {
+        "gameId": game_id,
+        "player2": player2_address,
+        "signatureExpiration": signature_expiration
+    }
+    
+    # Sign the message with player1's private key
+    player1_signature = player1_account.sign_typed_data(
+        domain_type_dict,
+        join_game_type,
+        message
+    ).signature
+    
+    # Estimate gas for the transaction
+    gas_estimate = contract.functions.joinGame(
+        game_id,
+        player2_pool,
+        signature_expiration,
+        player1_signature
+    ).estimate_gas({
+        'from': player2_address,
+        'value': bet_amount,
+        'nonce': nonce,
+    })
+    
+    # Try to use EIP-1559 transaction format
+    try:
+        # Get the max priority fee (tip for miners)
+        max_priority_fee = web3.eth.max_priority_fee
+        
+        # Get the latest block to extract the base fee
+        latest_block = web3.eth.get_block('latest')
+        
+        # Get the chain ID
+        chain_id = web3.eth.chain_id
+        
+        # Check if the block has a base fee (EIP-1559 support)
+        if hasattr(latest_block, 'baseFeePerGas') and latest_block.baseFeePerGas is not None:
+            base_fee = latest_block.baseFeePerGas
+            
+            # Calculate max fee per gas (base fee + priority fee with buffer)
+            # Adding 2x priority fee as buffer to account for base fee increases
+            max_fee_per_gas = base_fee + (max_priority_fee * 2)
+            
+            # Build the transaction using EIP-1559 format
+            transaction = contract.functions.joinGame(
+                game_id,
+                player2_pool,
+                signature_expiration,
+                player1_signature
+            ).build_transaction({
+                'from': player2_address,
+                'value': bet_amount,
+                'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+                'maxFeePerGas': max_fee_per_gas,
+                'maxPriorityFeePerGas': max_priority_fee,
+                'nonce': nonce,
+                'type': 2,  # Explicitly set transaction type to EIP-1559
+                'chainId': chain_id,  # Add chain ID to prevent replay attacks
+            })
+            print("Using EIP-1559 transaction format")
+        else:
+            # Fallback to legacy transaction if baseFeePerGas is not available
+            raise AttributeError("Latest block does not have baseFeePerGas")
+    except Exception as e:
+        print(f"Warning: Could not use EIP-1559 transaction format: {e}")
+        print("Falling back to legacy transaction format")
+        
+        # Get the chain ID if not already retrieved
+        if 'chain_id' not in locals():
+            chain_id = web3.eth.chain_id
+            
+        # Build the transaction using legacy format
+        transaction = contract.functions.joinGame(
+            game_id,
+            player2_pool,
+            signature_expiration,
+            player1_signature
+        ).build_transaction({
+            'from': player2_address,
+            'value': bet_amount,
+            'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+            'gasPrice': web3.eth.gas_price,
+            'nonce': nonce,
+            'chainId': chain_id,  # Add chain ID to prevent replay attacks
+        })
+    
+    # Sign the transaction with player2's private key
+    signed_txn = web3.eth.account.sign_transaction(transaction, player2_private_key)
+    
+    # Send the transaction
+    tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+    
+    # Wait for the transaction to be mined
+    print(f"Transaction sent: {tx_hash.hex()}")
+    print("Waiting for transaction to be mined...")
+    
+    receipt = wait_for_transaction_receipt(web3, tx_hash.hex())
+    
+    # Get the updated game info
+    game_info = get_game_info(web3, contract, game_id)
+    
+    return tx_hash.hex(), game_info
+
+
 def validate_create_game_transaction(
     web3: Web3,
     contract: Contract,

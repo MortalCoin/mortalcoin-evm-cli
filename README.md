@@ -5,6 +5,7 @@ A command-line interface for interacting with MortalCoin EVM smart contracts.
 ## Features
 
 - Create games on the MortalCoin smart contract
+- Join existing games on the MortalCoin smart contract
 - Validate game creation transactions
 - Track transaction status
 - Retrieve game information
@@ -52,6 +53,31 @@ mortalcoin create-game-command \
 - `--contract-address`: Address of the MortalCoin smart contract (required)
 - `--bet-amount`: Bet amount in ETH (required)
 - `--pool-address`: Address of the pool (required)
+
+### Join a Game
+
+Join an existing game on the blockchain:
+
+```
+mortalcoin join-game-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --game-id GAME_ID \
+  --player1-privkey PLAYER1_PRIVATE_KEY \
+  --player2-privkey PLAYER2_PRIVATE_KEY \
+  --player2-pool PLAYER2_POOL_ADDRESS \
+  --bet-amount BET_AMOUNT_IN_ETH
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--player1-privkey`: Private key of player1 who created the game, in 0x-prefixed hex format (required)
+- `--player2-privkey`: Private key of player2 who is joining the game, in 0x-prefixed hex format (required)
+- `--player2-pool`: Address of player2's pool in 0x-prefixed hex format (required)
+- `--bet-amount`: Bet amount in ETH (must match the game's bet amount) (required)
 
 ### Validate a Game Creation Transaction
 
@@ -105,6 +131,19 @@ mortalcoin create-game-command \
   --contract-address 0x1234567890123456789012345678901234567890 \
   --bet-amount 0.1 \
   --pool-address 0x0987654321098765432109876543210987654321
+```
+
+### Joining a Game
+
+```
+mortalcoin join-game-command \
+  --rpc-url https://mainnet.infura.io/v3/your-project-id \
+  --contract-address 0x1234567890123456789012345678901234567890 \
+  --game-id 0x20 \
+  --player1-privkey 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef \
+  --player2-privkey 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890 \
+  --player2-pool 0x0987654321098765432109876543210987654321 \
+  --bet-amount 0.1
 ```
 
 ### Validating a Game Creation Transaction
