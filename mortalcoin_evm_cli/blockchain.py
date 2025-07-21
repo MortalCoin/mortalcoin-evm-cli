@@ -6,10 +6,9 @@ on the Ethereum blockchain.
 """
 
 import json
-import os
 import time
 from pathlib import Path
-from typing import Dict, Any, Tuple, Optional
+from typing import Dict, Any, Tuple
 
 from web3 import Web3
 from web3.contract import Contract
