@@ -23,6 +23,7 @@ from mortalcoin_evm_cli.blockchain import (
     join_game,
     post_position,
     close_position,
+    finish_game,
 )
 
 
@@ -669,6 +670,128 @@ def close_position_command(
         # Close the position
         click.echo(f"Closing {direction} position for game {game_id} with nonce {nonce}...")
         tx_hash = close_position(
+            web3=web3,
+            contract=contract,
+            private_key=player_privkey,
+            game_id=game_id_int,
+            direction=direction_enum,
+            nonce=nonce_int,
+        )
+        
+        click.echo(f"Transaction hash: {tx_hash}")
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Address of the MortalCoin smart contract in 0x-prefixed hex format.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--player-privkey",
+    required=True,
+    help="Private key of the player in 0x-prefixed hex format.",
+)
+@click.option(
+    "--game-id",
+    required=True,
+    help="Game ID in 0x-prefixed hex format.",
+)
+@click.option(
+    "--direction",
+    required=False,
+    type=click.Choice(["Long", "Short"], case_sensitive=False),
+    help="Direction of the position (Long or Short). Optional.",
+)
+@click.option(
+    "--nonce",
+    required=False,
+    help="Nonce in 0x-prefixed hex format. Optional.",
+)
+def finish_game_command(
+    rpc_url: str,
+    contract_address: str,
+    player_privkey: str,
+    game_id: str,
+    direction: str = None,
+    nonce: str = None,
+):
+    """
+    Finish a game on the blockchain.
+    
+    This command allows a player to finish a game by calling the finishGame function. It requires:
+    - The player's private key
+    - The game ID
+    - Optionally, the direction of the position (Long or Short)
+    - Optionally, the nonce used when posting the position
+    
+    The command submits a transaction from the player's account to finish the game.
+    It waits for confirmation and prints the transaction hash.
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        
+        # Convert game_id from hex to int if it's in hex format
+        if game_id.startswith("0x"):
+            game_id_int = int(game_id, 16)
+        else:
+            try:
+                game_id_int = int(game_id)
+            except ValueError:
+                click.echo(f"Error: Invalid game ID format: {game_id}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Convert direction to enum value if provided
+        direction_enum = None
+        if direction:
+            direction_enum = Direction.Long if direction.lower() == "long" else Direction.Short
+        else:
+            # If direction is not provided, default to Long
+            direction_enum = Direction.Long
+            click.echo("Direction not provided, defaulting to Long.")
+        
+        # Convert nonce from hex to int if it's in hex format and provided
+        nonce_int = None
+        if nonce:
+            if nonce.startswith("0x"):
+                nonce_int = int(nonce, 16)
+            else:
+                try:
+                    nonce_int = int(nonce)
+                except ValueError:
+                    click.echo(f"Error: Invalid nonce format: {nonce}. Must be a decimal number or 0x-prefixed hex.")
+                    sys.exit(1)
+        else:
+            # If nonce is not provided, default to 0
+            nonce_int = 0
+            click.echo("Nonce not provided, defaulting to 0.")
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Finish the game
+        click.echo(f"Finishing game {game_id} with direction {direction_enum.name} and nonce {nonce_int}...")
+        tx_hash = finish_game(
             web3=web3,
             contract=contract,
             private_key=player_privkey,

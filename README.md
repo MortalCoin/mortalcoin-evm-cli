@@ -171,6 +171,29 @@ mortalcoin close-position-command \
 - `--nonce`: Nonce in 0x-prefixed hex format or decimal (required)
 - `--player-privkey`: Private key of the player in 0x-prefixed hex format (required)
 
+### Finish a Game
+
+Finish a game on the blockchain by calling the finishGame function:
+
+```
+mortalcoin finish-game-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --player-privkey PLAYER_PRIVATE_KEY \
+  --game-id GAME_ID \
+  --direction DIRECTION \
+  --nonce NONCE
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--player-privkey`: Private key of the player in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--direction`: Direction of the position (Long or Short) (optional, defaults to Long)
+- `--nonce`: Nonce in 0x-prefixed hex format or decimal (optional, defaults to 0)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
