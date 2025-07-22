@@ -7,13 +7,27 @@ on the Ethereum blockchain.
 
 import json
 import time
+from enum import IntEnum
 from pathlib import Path
 from typing import Dict, Any, Tuple, Callable
 
+from eth_abi import encode
 from web3 import Web3
 from web3.contract import Contract
 from web3.exceptions import TransactionNotFound
 from web3.types import TxReceipt, Wei
+
+
+class Direction(IntEnum):
+    """
+    Enum representing the direction of a position.
+    
+    Attributes:
+        Long: Long position (0)
+        Short: Short position (1)
+    """
+    Long = 0
+    Short = 1
 
 
 def load_abi() -> Dict[str, Any]:
@@ -481,6 +495,92 @@ def validate_create_game_transaction(
         "game_id_valid": True,
         "game_info": game_info
     }
+
+
+def post_position(
+    web3: Web3,
+    contract: Contract,
+    player_private_key: str,
+    backend_private_key: str,
+    game_id: int,
+    direction: Direction,
+    nonce: int
+) -> str:
+    """
+    Post a position on the blockchain.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        player_private_key: The private key of the player.
+        backend_private_key: The private key of the backend.
+        game_id: The ID of the game.
+        direction: The direction of the position (Long or Short).
+        nonce: A random nonce for the position.
+        
+    Returns:
+        The transaction hash.
+    """
+    # Get accounts from private keys
+    player_account = web3.eth.account.from_key(player_private_key)
+    backend_account = web3.eth.account.from_key(backend_private_key)
+    
+    player_address = player_account.address
+
+    # Calculate the hashed direction
+    # In Solidity: keccak256(abi.encode(gameId, direction, nonce))
+    encoded_data = encode(['uint256', 'uint8', 'uint256'], [game_id, direction, nonce])
+    hashed_direction = web3.keccak(encoded_data)
+
+    # Create the EIP-712 typed data for the backend signature
+    domain_type_dict = {
+        "name": "MortalCoin",
+        "version": "1",
+        "chainId": web3.eth.chain_id,
+        "verifyingContract": contract.address
+    }
+    
+    # Define the PostPosition type for EIP-712
+    post_position_type = {
+        "PostPosition": [
+            {"name": "gameId", "type": "uint256"},
+            {"name": "player", "type": "address"},
+            {"name": "hashedDirection", "type": "bytes32"}
+        ]
+    }
+
+    # Create the message to sign
+    message = {
+        "gameId": game_id,
+        "player": player_address,
+        "hashedDirection": hashed_direction
+    }
+    
+    # Sign the message with backend's private key
+    backend_signature = backend_account.sign_typed_data(
+        domain_type_dict,
+        post_position_type,
+        message
+    ).signature
+    
+    # Prepare transaction parameters
+    tx_params = {
+        'from': player_address
+    }
+
+    # Use the common transaction building, signing, and sending function
+    tx_hash, receipt = build_sign_send_transaction(
+        web3=web3,
+        contract_function=contract.functions.postPosition(
+            game_id,
+            hashed_direction,
+            backend_signature
+        ),
+        private_key=player_private_key,
+        tx_params=tx_params
+    )
+    
+    return tx_hash
 
 
 def validate_join_game_transaction(

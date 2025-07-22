@@ -6,6 +6,7 @@ A command-line interface for interacting with MortalCoin EVM smart contracts.
 
 - Create games on the MortalCoin smart contract
 - Join existing games on the MortalCoin smart contract
+- Post positions for games on the MortalCoin smart contract
 - Validate game creation transactions
 - Validate game joining transactions
 - Track transaction status
@@ -122,6 +123,31 @@ mortalcoin validate-join-game-command \
 - `--player2-pool`: Address of player2's pool in 0x-prefixed hex format (required)
 - `--tx-hash`: Transaction hash in 0x-prefixed hex format (required)
 
+### Post a Position
+
+Post a position for a game on the blockchain:
+
+```
+mortalcoin post-position-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --player-privkey PLAYER_PRIVATE_KEY \
+  --backend-privkey BACKEND_PRIVATE_KEY \
+  --game-id GAME_ID \
+  --direction DIRECTION \
+  --nonce NONCE
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--player-privkey`: Private key of the player in 0x-prefixed hex format (required)
+- `--backend-privkey`: Private key of the backend in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--direction`: Direction of the position (Long or Short) (required)
+- `--nonce`: Nonce in 0x-prefixed hex format or decimal (required)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
@@ -140,54 +166,6 @@ MORTALCOIN_RPC_URL=your_rpc_url
 MORTALCOIN_CONTRACT_ADDRESS=contract_address
 MORTALCOIN_BET_AMOUNT=bet_amount
 MORTALCOIN_POOL_ADDRESS=pool_address
-```
-
-## Examples
-
-### Creating a Game
-
-```
-mortalcoin create-game-command \
-  --private-key 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef \
-  --rpc-url https://mainnet.infura.io/v3/your-project-id \
-  --contract-address 0x1234567890123456789012345678901234567890 \
-  --bet-amount 0.1 \
-  --pool-address 0x0987654321098765432109876543210987654321
-```
-
-### Joining a Game
-
-```
-mortalcoin join-game-command \
-  --rpc-url https://mainnet.infura.io/v3/your-project-id \
-  --contract-address 0x1234567890123456789012345678901234567890 \
-  --game-id 0x20 \
-  --player1-privkey 0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef \
-  --player2-privkey 0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890 \
-  --player2-pool 0x0987654321098765432109876543210987654321 \
-  --bet-amount 0.1
-```
-
-### Validating a Game Creation Transaction
-
-```
-mortalcoin validate-create-game-command \
-  --game-id 0x20 \
-  --tx-hash 0xadf9934ab7e12f804c57b806819034ead45aefeef0f2ec1f8a36ccdb0a3040e8 \
-  --pool-address 0x37f8084c6ed4228378A7beC5819872b595B00223 \
-  --contract-address 0x9848a4D5B73677Dc79a059B4f5142567Cf6b5C53 \
-  --rpc-url https://hyperion-testnet.metisdevops.link
-```
-
-### Validating a Game Join Transaction
-
-```
-mortalcoin validate-join-game-command \
-  --rpc-url https://hyperion-testnet.metisdevops.link \
-  --contract-address 0x9848a4D5B73677Dc79a059B4f5142567Cf6b5C53 \
-  --game-id 0x20 \
-  --player2-pool 0x37f8084c6ed4228378A7beC5819872b595B00223 \
-  --tx-hash 0x585127fda6c3b2258dc3e7b5f60bfec7426157e94cefcae5afba748881d3ac3a
 ```
 
 ## Security Considerations
