@@ -8,7 +8,7 @@ on the Ethereum blockchain.
 import json
 import time
 from pathlib import Path
-from typing import Dict, Any, Tuple
+from typing import Dict, Any, Tuple, Callable
 
 from web3 import Web3
 from web3.contract import Contract
@@ -84,19 +84,70 @@ def create_game(
     Returns:
         A tuple containing the transaction hash and the game ID.
     """
+    # Prepare transaction parameters
+    tx_params = {
+        'value': bet_amount
+    }
+    
+    # Use the common transaction building, signing, and sending function
+    tx_hash, receipt = build_sign_send_transaction(
+        web3=web3,
+        contract_function=contract.functions.createGame(pool_address),
+        private_key=private_key,
+        tx_params=tx_params
+    )
+    
+    # Get the game ID from the transaction receipt
+    # The createGame function returns the game ID, which should be in the logs
+    # We need to decode the logs to get the return value
+    game_id = None
+    
+    # Try to get the game ID from the return value
+    try:
+        # Get the current game ID (it should be the last created game)
+        game_id = contract.functions.currentGameId().call() - 1
+    except Exception as e:
+        print(f"Failed to get game ID: {e}")
+        # As a fallback, we can try to get it from the logs
+        # This would require knowing the event signature and parsing the logs
+        # For simplicity, we'll just return None for now
+    
+    return tx_hash, game_id
+
+
+def build_sign_send_transaction(
+    web3: Web3,
+    contract_function: Callable,
+    private_key: str,
+    tx_params: Dict[str, Any]
+) -> Tuple[str, TxReceipt]:
+    """
+    Build, sign, and send a transaction for a contract function call.
+    
+    Args:
+        web3: A Web3 instance.
+        contract_function: The contract function to call.
+        private_key: The private key to sign the transaction with.
+        tx_params: Transaction parameters (from, value, etc.).
+        
+    Returns:
+        A tuple containing the transaction hash (hex string) and the transaction receipt.
+    """
     # Get the account from the private key
     account = web3.eth.account.from_key(private_key)
     address = account.address
     
-    # Get the nonce for the account
-    nonce = web3.eth.get_transaction_count(address)
+    # Ensure 'from' address is set correctly
+    tx_params['from'] = address
     
-    # Estimate gas for the transaction
-    gas_estimate = contract.functions.createGame(pool_address).estimate_gas({
-        'from': address,
-        'value': bet_amount,
-        'nonce': nonce,
-    })
+    # Get the nonce if not provided
+    if 'nonce' not in tx_params:
+        tx_params['nonce'] = web3.eth.get_transaction_count(address)
+    
+    # Estimate gas if not provided
+    if 'gas' not in tx_params:
+        gas_estimate = contract_function.estimate_gas(tx_params)
+        tx_params['gas'] = int(gas_estimate * 1.2)  # Add 20% buffer
     
     # Try to use EIP-1559 transaction format
     try:
@@ -118,16 +169,15 @@ def create_game(
             max_fee_per_gas = base_fee + (max_priority_fee * 2)
             
             # Build the transaction using EIP-1559 format
-            transaction = contract.functions.createGame(pool_address).build_transaction({
-                'from': address,
-                'value': bet_amount,
-                'gas': int(gas_estimate * 1.2),  # Add 20% buffer
+            eip1559_params = tx_params.copy()
+            eip1559_params.update({
                 'maxFeePerGas': max_fee_per_gas,
                 'maxPriorityFeePerGas': max_priority_fee,
-                'nonce': nonce,
                 'type': 2,  # Explicitly set transaction type to EIP-1559
                 'chainId': chain_id,  # Add chain ID to prevent replay attacks
             })
+            
+            transaction = contract_function.build_transaction(eip1559_params)
             print("Using EIP-1559 transaction format")
         else:
             # Fallback to legacy transaction if baseFeePerGas is not available
@@ -141,43 +191,27 @@ def create_game(
             chain_id = web3.eth.chain_id
             
         # Build the transaction using legacy format
-        transaction = contract.functions.createGame(pool_address).build_transaction({
-            'from': address,
-            'value': bet_amount,
-            'gas': int(gas_estimate * 1.2),  # Add 20% buffer
-            'gasPrice': web3.eth.gas_price,
-            'nonce': nonce,
-            'chainId': chain_id,  # Add chain ID to prevent replay attacks
-        })
+        legacy_params = tx_params.copy()
+        if 'gasPrice' not in legacy_params:
+            legacy_params['gasPrice'] = web3.eth.gas_price
+        legacy_params['chainId'] = chain_id  # Add chain ID to prevent replay attacks
+        
+        transaction = contract_function.build_transaction(legacy_params)
     
     # Sign the transaction
     signed_txn = web3.eth.account.sign_transaction(transaction, private_key)
     
     # Send the transaction
     tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
+    tx_hash_hex = tx_hash.hex()
     
     # Wait for the transaction to be mined
-    print(f"Transaction sent: {tx_hash.hex()}")
+    print(f"Transaction sent: {tx_hash_hex}")
     print("Waiting for transaction to be mined...")
     
-    receipt = wait_for_transaction_receipt(web3, tx_hash.hex())
+    receipt = wait_for_transaction_receipt(web3, tx_hash_hex)
     
-    # Get the game ID from the transaction receipt
-    # The createGame function returns the game ID, which should be in the logs
-    # We need to decode the logs to get the return value
-    game_id = None
-    
-    # Try to get the game ID from the return value
-    try:
-        # Get the current game ID (it should be the last created game)
-        game_id = contract.functions.currentGameId().call() - 1
-    except Exception as e:
-        print(f"Failed to get game ID: {e}")
-        # As a fallback, we can try to get it from the logs
-        # This would require knowing the event signature and parsing the logs
-        # For simplicity, we'll just return None for now
-    
-    return tx_hash.hex(), game_id
+    return tx_hash_hex, receipt
 
 
 def wait_for_transaction_receipt(
@@ -298,9 +332,6 @@ def join_game(
     # Convert pool address to checksum format
     player2_pool = Web3.to_checksum_address(player2_pool)
     
-    # Get the nonce for player2's account
-    nonce = web3.eth.get_transaction_count(player2_address)
-    
     # Set signature expiration (current time + 1 hour)
     signature_expiration = int(time.time()) + 3600
     
@@ -336,96 +367,29 @@ def join_game(
         message
     ).signature
     
-    # Estimate gas for the transaction
-    gas_estimate = contract.functions.joinGame(
-        game_id,
-        player2_pool,
-        signature_expiration,
-        player1_signature
-    ).estimate_gas({
+    # Prepare transaction parameters
+    tx_params = {
         'from': player2_address,
-        'value': bet_amount,
-        'nonce': nonce,
-    })
+        'value': bet_amount
+    }
     
-    # Try to use EIP-1559 transaction format
-    try:
-        # Get the max priority fee (tip for miners)
-        max_priority_fee = web3.eth.max_priority_fee
-        
-        # Get the latest block to extract the base fee
-        latest_block = web3.eth.get_block('latest')
-        
-        # Get the chain ID
-        chain_id = web3.eth.chain_id
-        
-        # Check if the block has a base fee (EIP-1559 support)
-        if hasattr(latest_block, 'baseFeePerGas') and latest_block.baseFeePerGas is not None:
-            base_fee = latest_block.baseFeePerGas
-            
-            # Calculate max fee per gas (base fee + priority fee with buffer)
-            # Adding 2x priority fee as buffer to account for base fee increases
-            max_fee_per_gas = base_fee + (max_priority_fee * 2)
-            
-            # Build the transaction using EIP-1559 format
-            transaction = contract.functions.joinGame(
-                game_id,
-                player2_pool,
-                signature_expiration,
-                player1_signature
-            ).build_transaction({
-                'from': player2_address,
-                'value': bet_amount,
-                'gas': int(gas_estimate * 1.2),  # Add 20% buffer
-                'maxFeePerGas': max_fee_per_gas,
-                'maxPriorityFeePerGas': max_priority_fee,
-                'nonce': nonce,
-                'type': 2,  # Explicitly set transaction type to EIP-1559
-                'chainId': chain_id,  # Add chain ID to prevent replay attacks
-            })
-            print("Using EIP-1559 transaction format")
-        else:
-            # Fallback to legacy transaction if baseFeePerGas is not available
-            raise AttributeError("Latest block does not have baseFeePerGas")
-    except Exception as e:
-        print(f"Warning: Could not use EIP-1559 transaction format: {e}")
-        print("Falling back to legacy transaction format")
-        
-        # Get the chain ID if not already retrieved
-        if 'chain_id' not in locals():
-            chain_id = web3.eth.chain_id
-            
-        # Build the transaction using legacy format
-        transaction = contract.functions.joinGame(
+    # Use the common transaction building, signing, and sending function
+    tx_hash, receipt = build_sign_send_transaction(
+        web3=web3,
+        contract_function=contract.functions.joinGame(
             game_id,
             player2_pool,
             signature_expiration,
             player1_signature
-        ).build_transaction({
-            'from': player2_address,
-            'value': bet_amount,
-            'gas': int(gas_estimate * 1.2),  # Add 20% buffer
-            'gasPrice': web3.eth.gas_price,
-            'nonce': nonce,
-            'chainId': chain_id,  # Add chain ID to prevent replay attacks
-        })
-    
-    # Sign the transaction with player2's private key
-    signed_txn = web3.eth.account.sign_transaction(transaction, player2_private_key)
-    
-    # Send the transaction
-    tx_hash = web3.eth.send_raw_transaction(signed_txn.raw_transaction)
-    
-    # Wait for the transaction to be mined
-    print(f"Transaction sent: {tx_hash.hex()}")
-    print("Waiting for transaction to be mined...")
-    
-    receipt = wait_for_transaction_receipt(web3, tx_hash.hex())
+        ),
+        private_key=player2_private_key,
+        tx_params=tx_params
+    )
     
     # Get the updated game info
     game_info = get_game_info(web3, contract, game_id)
     
-    return tx_hash.hex(), game_info
+    return tx_hash, game_info
 
 
 def validate_create_game_transaction(
