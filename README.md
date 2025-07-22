@@ -221,6 +221,29 @@ mortalcoin force-finish-game-command \
 - `--player2-direction`: Direction of player2's position (Long or Short) (required)
 - `--player2-nonce`: Player2's nonce in 0x-prefixed hex format or decimal (required)
 
+### Validate Post Position
+
+Validate a transaction that posted a position on the blockchain:
+
+```
+mortalcoin validate-post-position-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --game-id GAME_ID \
+  --direction DIRECTION \
+  --transaction-hash TRANSACTION_HASH \
+  --nonce NONCE
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--direction`: Direction of the position (Long or Short) (required)
+- `--transaction-hash`: Transaction hash in 0x-prefixed hex format (required)
+- `--nonce`: Nonce in 0x-prefixed hex format or decimal (required)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:

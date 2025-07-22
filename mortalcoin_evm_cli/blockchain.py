@@ -820,3 +820,89 @@ def validate_join_game_transaction(
         "pool_address_match": True,
         "game_info": game_info
     }
+
+
+def validate_post_position_transaction(
+    web3: Web3,
+    contract: Contract,
+    game_id: int,
+    tx_hash: str,
+    direction: Direction,
+    nonce: int
+) -> Dict[str, Any]:
+    """
+    Validate a transaction that posted a position.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        game_id: The expected game ID.
+        tx_hash: The transaction hash.
+        direction: The direction of the position (Long or Short).
+        nonce: The nonce used for the position.
+        
+    Returns:
+        A dictionary containing validation results.
+    
+    Raises:
+        TransactionNotFound: If the transaction is not found.
+        ValueError: If the transaction validation fails.
+    """
+    # Check if the transaction exists and is confirmed
+    try:
+        tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
+        if tx_receipt is None:
+            raise ValueError("Transaction is not confirmed")
+    except TransactionNotFound:
+        raise ValueError("Transaction not found")
+    
+    # Check if the transaction was successful
+    if tx_receipt["status"] != 1:
+        raise ValueError("Transaction execution failed")
+    
+    # Get the transaction details
+    tx = web3.eth.get_transaction(tx_hash)
+    
+    # Check if the transaction was sent to the contract address
+    if tx["to"].lower() != contract.address.lower():
+        raise ValueError(f"Transaction was not sent to the contract address {contract.address}")
+    
+    # Calculate the hashed direction
+    encoded_data = encode(['uint256', 'uint8', 'uint256'], [game_id, direction, nonce])
+    expected_hashed_direction = web3.keccak(encoded_data)
+    
+    # Decode the transaction input data
+    try:
+        # Get the function signature for postPosition
+        # Calculate the function signature (first 4 bytes of keccak hash of 'postPosition(uint256,bytes32,bytes)')
+        # Function signature should be exactly 4 bytes (8 hex characters)
+        post_position_signature = web3.keccak(text='postPosition(uint256,bytes32,bytes)').hex()[:8]
+        
+        # Check if the transaction called the postPosition function
+        # Convert post_position_signature to bytes for comparison with tx["input"] which is in bytes format
+        post_position_signature_bytes = bytes.fromhex(post_position_signature)
+        
+        if not tx["input"].startswith(post_position_signature_bytes):
+            raise ValueError("Transaction did not call postPosition function")
+        
+        # Decode the function parameters
+        decoded_input = contract.decode_function_input(tx["input"])
+        
+        # Check if the game ID matches
+        if decoded_input[1]["gameId"] != game_id:
+            raise ValueError(f"Transaction called postPosition with game ID {decoded_input[1]['gameId']} instead of {game_id}")
+        
+        # Check if the hashed direction matches
+        if decoded_input[1]["hashedDirection"] != expected_hashed_direction:
+            raise ValueError(f"Transaction called postPosition with incorrect hashed direction")
+    except Exception as e:
+        raise ValueError(f"Failed to decode transaction input: {e}")
+    
+    # All validations passed
+    return {
+        "confirmed": True,
+        "successful": True,
+        "called_post_position": True,
+        "game_id_match": True,
+        "hashed_direction_match": True
+    }
