@@ -24,6 +24,7 @@ from mortalcoin_evm_cli.blockchain import (
     post_position,
     close_position,
     finish_game,
+    force_finish_game,
 )
 
 
@@ -798,6 +799,146 @@ def finish_game_command(
             game_id=game_id_int,
             direction=direction_enum,
             nonce=nonce_int,
+        )
+        
+        click.echo(f"Transaction hash: {tx_hash}")
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Address of the MortalCoin smart contract in 0x-prefixed hex format.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--backend-privkey",
+    required=True,
+    help="Private key of the backend in 0x-prefixed hex format.",
+)
+@click.option(
+    "--game-id",
+    required=True,
+    help="Game ID in 0x-prefixed hex format.",
+)
+@click.option(
+    "--player1-direction",
+    required=True,
+    type=click.Choice(["Long", "Short"], case_sensitive=False),
+    help="Direction of player1's position (Long or Short).",
+)
+@click.option(
+    "--player1-nonce",
+    required=True,
+    help="Player1's nonce in 0x-prefixed hex format.",
+)
+@click.option(
+    "--player2-direction",
+    required=True,
+    type=click.Choice(["Long", "Short"], case_sensitive=False),
+    help="Direction of player2's position (Long or Short).",
+)
+@click.option(
+    "--player2-nonce",
+    required=True,
+    help="Player2's nonce in 0x-prefixed hex format.",
+)
+def force_finish_game_command(
+    rpc_url: str,
+    contract_address: str,
+    backend_privkey: str,
+    game_id: str,
+    player1_direction: str,
+    player1_nonce: str,
+    player2_direction: str,
+    player2_nonce: str,
+):
+    """
+    Force finish a game on the blockchain.
+    
+    This command allows the backend to force finish a game by calling the forceFinishGame function. It requires:
+    - The backend's private key
+    - The game ID
+    - Player1's direction (Long or Short)
+    - Player1's nonce
+    - Player2's direction (Long or Short)
+    - Player2's nonce
+    
+    The command submits a transaction from the backend's account to force finish the game.
+    It waits for confirmation and prints the transaction hash.
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        
+        # Convert game_id from hex to int if it's in hex format
+        if game_id.startswith("0x"):
+            game_id_int = int(game_id, 16)
+        else:
+            try:
+                game_id_int = int(game_id)
+            except ValueError:
+                click.echo(f"Error: Invalid game ID format: {game_id}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Convert directions to enum values
+        player1_direction_enum = Direction.Long if player1_direction.lower() == "long" else Direction.Short
+        player2_direction_enum = Direction.Long if player2_direction.lower() == "long" else Direction.Short
+        
+        # Convert nonces from hex to int if they're in hex format
+        if player1_nonce.startswith("0x"):
+            player1_nonce_int = int(player1_nonce, 16)
+        else:
+            try:
+                player1_nonce_int = int(player1_nonce)
+            except ValueError:
+                click.echo(f"Error: Invalid player1 nonce format: {player1_nonce}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+                
+        if player2_nonce.startswith("0x"):
+            player2_nonce_int = int(player2_nonce, 16)
+        else:
+            try:
+                player2_nonce_int = int(player2_nonce)
+            except ValueError:
+                click.echo(f"Error: Invalid player2 nonce format: {player2_nonce}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Force finish the game
+        click.echo(f"Force finishing game {game_id}...")
+        click.echo(f"Player1 direction: {player1_direction_enum.name}, nonce: {player1_nonce_int}")
+        click.echo(f"Player2 direction: {player2_direction_enum.name}, nonce: {player2_nonce_int}")
+        
+        tx_hash = force_finish_game(
+            web3=web3,
+            contract=contract,
+            private_key=backend_privkey,
+            game_id=game_id_int,
+            player1_direction=player1_direction_enum,
+            player1_nonce=player1_nonce_int,
+            player2_direction=player2_direction_enum,
+            player2_nonce=player2_nonce_int,
         )
         
         click.echo(f"Transaction hash: {tx_hash}")

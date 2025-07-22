@@ -675,6 +675,58 @@ def finish_game(
     return tx_hash
 
 
+def force_finish_game(
+    web3: Web3,
+    contract: Contract,
+    private_key: str,
+    game_id: int,
+    player1_direction: Direction,
+    player1_nonce: int,
+    player2_direction: Direction,
+    player2_nonce: int
+) -> str:
+    """
+    Force finish a game on the blockchain by calling the forceFinishGame function.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        private_key: The private key of the backend.
+        game_id: The ID of the game.
+        player1_direction: The direction of player1's position (Long or Short).
+        player1_nonce: The nonce used when player1 posted the position.
+        player2_direction: The direction of player2's position (Long or Short).
+        player2_nonce: The nonce used when player2 posted the position.
+        
+    Returns:
+        The transaction hash.
+    """
+    # Get account from private key
+    account = web3.eth.account.from_key(private_key)
+    backend_address = account.address
+    
+    # Prepare transaction parameters
+    tx_params = {
+        'from': backend_address
+    }
+    
+    # Use the common transaction building, signing, and sending function
+    tx_hash, receipt = build_sign_send_transaction(
+        web3=web3,
+        contract_function=contract.functions.forceFinishGame(
+            game_id,
+            player1_direction,
+            player1_nonce,
+            player2_direction,
+            player2_nonce
+        ),
+        private_key=private_key,
+        tx_params=tx_params
+    )
+    
+    return tx_hash
+
+
 def validate_join_game_transaction(
     web3: Web3,
     contract: Contract,
