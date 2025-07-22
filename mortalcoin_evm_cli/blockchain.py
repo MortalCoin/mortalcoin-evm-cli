@@ -583,6 +583,52 @@ def post_position(
     return tx_hash
 
 
+def close_position(
+    web3: Web3,
+    contract: Contract,
+    private_key: str,
+    game_id: int,
+    direction: Direction,
+    nonce: int
+) -> str:
+    """
+    Close a position on the blockchain.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        private_key: The private key of the player.
+        game_id: The ID of the game.
+        direction: The direction of the position (Long or Short).
+        nonce: The nonce used when posting the position.
+        
+    Returns:
+        The transaction hash.
+    """
+    # Get account from private key
+    account = web3.eth.account.from_key(private_key)
+    player_address = account.address
+    
+    # Prepare transaction parameters
+    tx_params = {
+        'from': player_address
+    }
+    
+    # Use the common transaction building, signing, and sending function
+    tx_hash, receipt = build_sign_send_transaction(
+        web3=web3,
+        contract_function=contract.functions.closePosition(
+            game_id,
+            direction,
+            nonce
+        ),
+        private_key=private_key,
+        tx_params=tx_params
+    )
+    
+    return tx_hash
+
+
 def validate_join_game_transaction(
     web3: Web3,
     contract: Contract,
