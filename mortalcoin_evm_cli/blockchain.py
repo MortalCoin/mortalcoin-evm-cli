@@ -906,3 +906,119 @@ def validate_post_position_transaction(
         "game_id_match": True,
         "hashed_direction_match": True
     }
+
+
+def validate_close_position_transaction(
+    web3: Web3,
+    contract: Contract,
+    game_id: int,
+    tx_hash: str,
+    direction: Direction,
+    nonce: int
+) -> Dict[str, Any]:
+    """
+    Validate a transaction that closed a position.
+    
+    Args:
+        web3: A Web3 instance.
+        contract: The contract instance.
+        game_id: The expected game ID.
+        tx_hash: The transaction hash.
+        direction: The direction of the position (Long or Short).
+        nonce: The nonce used for the position.
+        
+    Returns:
+        A dictionary containing validation results and position data.
+    
+    Raises:
+        TransactionNotFound: If the transaction is not found.
+        ValueError: If the transaction validation fails.
+    """
+    # Check if the transaction exists and is confirmed
+    try:
+        tx_receipt = web3.eth.get_transaction_receipt(tx_hash)
+        if tx_receipt is None:
+            raise ValueError("Transaction is not confirmed")
+    except TransactionNotFound:
+        raise ValueError("Transaction not found")
+    
+    # Check if the transaction was successful
+    if tx_receipt["status"] != 1:
+        raise ValueError("Transaction execution failed")
+    
+    # Get the transaction details
+    tx = web3.eth.get_transaction(tx_hash)
+    
+    # Check if the transaction was sent to the contract address
+    if tx["to"].lower() != contract.address.lower():
+        raise ValueError(f"Transaction was not sent to the contract address {contract.address}")
+    
+    # Decode the transaction input data
+    try:
+        # Get the function signature for closePosition
+        # Calculate the function signature (first 4 bytes of keccak hash of 'closePosition(uint256,uint8,uint256)')
+        # Function signature should be exactly 4 bytes (8 hex characters)
+        close_position_signature = web3.keccak(text='closePosition(uint256,uint8,uint256)').hex()[:8]
+        
+        # Check if the transaction called the closePosition function
+        # Convert close_position_signature to bytes for comparison with tx["input"] which is in bytes format
+        close_position_signature_bytes = bytes.fromhex(close_position_signature)
+        
+        if not tx["input"].startswith(close_position_signature_bytes):
+            raise ValueError("Transaction did not call closePosition function")
+        
+        # Decode the function parameters
+        decoded_input = contract.decode_function_input(tx["input"])
+        
+        # Check if the game ID matches
+        if decoded_input[1]["gameId"] != game_id:
+            raise ValueError(f"Transaction called closePosition with game ID {decoded_input[1]['gameId']} instead of {game_id}")
+        
+        # Check if the direction matches
+        if decoded_input[1]["direction"] != direction:
+            raise ValueError(f"Transaction called closePosition with direction {decoded_input[1]['direction']} instead of {direction}")
+        
+        # Check if the nonce matches
+        if decoded_input[1]["nonce"] != nonce:
+            raise ValueError(f"Transaction called closePosition with nonce {decoded_input[1]['nonce']} instead of {nonce}")
+    except Exception as e:
+        raise ValueError(f"Failed to decode transaction input: {e}")
+    
+    # Extract PositionClosed event from transaction logs
+    position_data = None
+    try:
+        # Get the event signature for PositionClosed
+        position_closed_event_signature = web3.keccak(text='PositionClosed(uint256,address,address,uint256,uint256,uint8,int256)').hex()
+        
+        # Find the PositionClosed event in the logs
+        for log in tx_receipt.logs:
+            # Check if the log is from the contract and has the PositionClosed event signature
+            if log.address.lower() == contract.address.lower() and log.topics[0].hex() == position_closed_event_signature:
+                # Decode the event data
+                event_data = contract.events.PositionClosed().process_log(log)
+                
+                # Check if the event is for the correct game ID
+                if event_data['args']['gameId'] == game_id:
+                    position_data = {
+                        "opening_price": event_data['args']['openingPrice'],
+                        "closing_price": event_data['args']['closingPrice'],
+                        "direction": event_data['args']['direction'],
+                        "pnl": event_data['args']['pnl']
+                    }
+                    break
+        
+        if position_data is None:
+            raise ValueError("PositionClosed event not found in transaction logs")
+    except Exception as e:
+        raise ValueError(f"Failed to extract PositionClosed event: {e}")
+    
+    # All validations passed
+    return {
+        "confirmed": True,
+        "successful": True,
+        "called_close_position": True,
+        "game_id_match": True,
+        "direction_match": True,
+        "nonce_match": True,
+        "position_data": position_data
+    }

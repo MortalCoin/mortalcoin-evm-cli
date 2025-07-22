@@ -21,6 +21,7 @@ from mortalcoin_evm_cli.blockchain import (
     validate_create_game_transaction,
     validate_join_game_transaction,
     validate_post_position_transaction,
+    validate_close_position_transaction,
     join_game,
     post_position,
     close_position,
@@ -1057,6 +1058,133 @@ def validate_post_position_command(
         click.echo(f"- Called postPosition function: {validation_result['called_post_position']}")
         click.echo(f"- Game ID matches: {validation_result['game_id_match']}")
         click.echo(f"- Hashed direction matches: {validation_result['hashed_direction_match']}")
+        
+    except Exception as e:
+        click.echo(f"Error: {str(e)}")
+        sys.exit(1)
+
+
+@main.command()
+@click.option(
+    "--rpc-url",
+    required=True,
+    help="URL of the Ethereum RPC endpoint.",
+    envvar="MORTALCOIN_RPC_URL",
+)
+@click.option(
+    "--contract-address",
+    required=True,
+    help="Smart contract address in 0x-prefixed hex format.",
+    envvar="MORTALCOIN_CONTRACT_ADDRESS",
+)
+@click.option(
+    "--game-id",
+    required=True,
+    help="Game ID in 0x-prefixed hex format or decimal.",
+)
+@click.option(
+    "--direction",
+    required=True,
+    type=click.Choice(["Long", "Short"], case_sensitive=False),
+    help="Direction of the position (Long or Short).",
+)
+@click.option(
+    "--nonce",
+    required=True,
+    help="Nonce in 0x-prefixed hex format or decimal.",
+)
+@click.option(
+    "--transaction-hash",
+    required=True,
+    help="Transaction hash in 0x-prefixed hex format.",
+)
+def validate_close_position_command(
+    rpc_url: str,
+    contract_address: str,
+    game_id: str,
+    direction: str,
+    nonce: str,
+    transaction_hash: str,
+):
+    """
+    Validate a transaction that closed a position.
+    
+    This command validates that:
+    - The transaction is confirmed
+    - The transaction execution was successful
+    - The transaction was sent to the contract address
+    - The transaction called closePosition with the provided game ID, direction, and nonce
+    
+    It also extracts the PositionClosed event from transaction logs and displays
+    position opening and closing prices and PnL.
+    """
+    try:
+        # Connect to the blockchain
+        web3 = get_web3_connection(rpc_url)
+        
+        # Validate addresses
+        if not Web3.is_address(contract_address):
+            click.echo(f"Error: Invalid contract address: {contract_address}")
+            sys.exit(1)
+        
+        # Convert addresses to checksum format
+        contract_address = Web3.to_checksum_address(contract_address)
+        
+        # Convert game_id from hex to int if it's in hex format
+        if game_id.startswith("0x"):
+            game_id_int = int(game_id, 16)
+        else:
+            try:
+                game_id_int = int(game_id)
+            except ValueError:
+                click.echo(f"Error: Invalid game ID format: {game_id}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Convert nonce from hex to int if it's in hex format
+        if nonce.startswith("0x"):
+            nonce_int = int(nonce, 16)
+        else:
+            try:
+                nonce_int = int(nonce)
+            except ValueError:
+                click.echo(f"Error: Invalid nonce format: {nonce}. Must be a decimal number or 0x-prefixed hex.")
+                sys.exit(1)
+        
+        # Convert direction string to Direction enum
+        direction_enum = Direction.Long if direction.lower() == "long" else Direction.Short
+        
+        # Get the contract instance
+        contract = get_contract(web3, contract_address)
+        
+        # Validate the transaction
+        click.echo(f"Validating transaction {transaction_hash} for game ID {game_id}...")
+        validation_result = validate_close_position_transaction(
+            web3=web3,
+            contract=contract,
+            game_id=game_id_int,
+            tx_hash=transaction_hash,
+            direction=direction_enum,
+            nonce=nonce_int,
+        )
+        
+        # Print the validation results
+        click.echo("Validation successful!")
+        click.echo("Results:")
+        click.echo(f"- Transaction confirmed: {validation_result['confirmed']}")
+        click.echo(f"- Transaction successful: {validation_result['successful']}")
+        click.echo(f"- Transaction sent to contract address: True")
+        click.echo(f"- Called closePosition function: {validation_result['called_close_position']}")
+        click.echo(f"- Game ID matches: {validation_result['game_id_match']}")
+        click.echo(f"- Direction matches: {validation_result['direction_match']}")
+        click.echo(f"- Nonce matches: {validation_result['nonce_match']}")
+        
+        # Print the position data
+        position_data = validation_result['position_data']
+        click.echo("\nPosition Data:")
+        click.echo(f"- Opening Price: {position_data['opening_price']}")
+        click.echo(f"- Closing Price: {position_data['closing_price']}")
+        click.echo(f"- Direction: {'Long' if position_data['direction'] == 0 else 'Short'}")
+        click.echo(f"- PnL: {position_data['pnl']}")
         
     except Exception as e:
         click.echo(f"Error: {str(e)}")

@@ -244,6 +244,37 @@ mortalcoin validate-post-position-command \
 - `--transaction-hash`: Transaction hash in 0x-prefixed hex format (required)
 - `--nonce`: Nonce in 0x-prefixed hex format or decimal (required)
 
+### Validate Close Position
+
+Validate a transaction that closed a position on the blockchain and extract position data:
+
+```
+mortalcoin validate-close-position-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --game-id GAME_ID \
+  --direction DIRECTION \
+  --nonce NONCE \
+  --transaction-hash TRANSACTION_HASH
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--direction`: Direction of the position (Long or Short) (required)
+- `--nonce`: Nonce in 0x-prefixed hex format or decimal (required)
+- `--transaction-hash`: Transaction hash in 0x-prefixed hex format (required)
+
+This command validates that:
+- The transaction is confirmed
+- The transaction execution was successful
+- The transaction was sent to the contract address
+- The transaction called closePosition with the provided game ID, direction, and nonce
+
+It also extracts the PositionClosed event from transaction logs and displays position opening and closing prices and PnL.
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
