@@ -194,6 +194,33 @@ mortalcoin finish-game-command \
 - `--direction`: Direction of the position (Long or Short) (optional, defaults to Long)
 - `--nonce`: Nonce in 0x-prefixed hex format or decimal (optional, defaults to 0)
 
+### Force Finish a Game
+
+Force finish a game on the blockchain by calling the forceFinishGame function:
+
+```
+mortalcoin force-finish-game-command \
+  --rpc-url RPC_URL \
+  --contract-address CONTRACT_ADDRESS \
+  --backend-privkey BACKEND_PRIVATE_KEY \
+  --game-id GAME_ID \
+  --player1-direction PLAYER1_DIRECTION \
+  --player1-nonce PLAYER1_NONCE \
+  --player2-direction PLAYER2_DIRECTION \
+  --player2-nonce PLAYER2_NONCE
+```
+
+#### Parameters
+
+- `--rpc-url`: URL of the Ethereum RPC endpoint (required)
+- `--contract-address`: Address of the MortalCoin smart contract in 0x-prefixed hex format (required)
+- `--backend-privkey`: Private key of the backend in 0x-prefixed hex format (required)
+- `--game-id`: Game ID in 0x-prefixed hex format or decimal (required)
+- `--player1-direction`: Direction of player1's position (Long or Short) (required)
+- `--player1-nonce`: Player1's nonce in 0x-prefixed hex format or decimal (required)
+- `--player2-direction`: Direction of player2's position (Long or Short) (required)
+- `--player2-nonce`: Player2's nonce in 0x-prefixed hex format or decimal (required)
+
 ### Environment Variables
 
 You can also set the parameters using environment variables:
